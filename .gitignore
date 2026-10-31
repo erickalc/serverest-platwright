@@ -1,0 +1,14 @@
+# Dependências
+node_modules/
+
+# Relatórios e artefatos de teste do Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+junit-results.xml
+
+# Variáveis de ambiente sensíveis (segurança)
+.env
+.env.*
+!.env.example
