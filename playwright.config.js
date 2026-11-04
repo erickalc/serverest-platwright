@@ -1,7 +1,7 @@
 // playwright.config.js
-const { defineConfig } = require('@playwright/test');
-const dotenv = require('dotenv');
-const path = require('path');
+import { defineConfig } from '@playwright/test';
+import dotenv from 'dotenv';
+import path from 'path';
 
 // Carrega o arquivo .env a partir da raiz do projeto
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -15,7 +15,7 @@ if (!process.env.BASE_URL) {
   );
 }
 
-module.exports = defineConfig({
+export default defineConfig({
   testDir: './tests',
   timeout: 30 * 1000,
   fullyParallel: true,
