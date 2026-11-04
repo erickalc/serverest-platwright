@@ -1,6 +1,6 @@
 // tests/usuario.spec.js
 import { test, expect } from '@playwright/test';
-import { UsuarioApi } from '../src/api/UsuarioApi.js'; // Mesmo nome: UsuarioApi
+import { UsuarioApi } from '../src/api/UsuarioApi.js'; 
 import { UsuarioFactory } from '../src/factories/UsuarioFactory.js';
 
 test.describe('Testes de API - Usuários', () => {
