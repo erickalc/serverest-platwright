@@ -12,7 +12,10 @@ test.describe('Testes de API - Produtos', () => {
     let tokenAdmin;
 
     test.beforeAll(async () => {
-        apiContext = await playwrightRequest.newContext();
+        // Agora injetamos o BASE_URL explicitamente no contexto manual
+        apiContext = await playwrightRequest.newContext({
+            baseURL: process.env.BASE_URL
+        });
         
         produtoApi = new ProdutoApi(apiContext);
         const usuarioApi = new UsuarioApi(apiContext);

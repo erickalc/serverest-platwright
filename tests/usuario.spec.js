@@ -6,8 +6,13 @@ import { UsuarioFactory } from '../src/factories/UsuarioFactory.js';
 test.describe('Testes de API - Usuários', () => {
   let usuarioApi;
 
-  test.beforeEach(async ({ request }) => {
-    usuarioApi = new UsuarioApi(request);
+  test.beforeAll(async () => {
+        // Agora injetamos o BASE_URL explicitamente no contexto manual
+        apiContext = await playwrightRequest.newContext({
+            baseURL: process.env.BASE_URL
+        });
+        
+        usuarioApi = new UsuarioApi(apiContext);
   });
 
   test('Deve criar um usuário com sucesso', async () => {

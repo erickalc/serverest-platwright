@@ -1,9 +1,5 @@
 image: mcr.microsoft.com/playwright:v1.64.1-jammy
 
-# Define as variáveis de ambiente necessárias para contornar a trava do config.js
-variables:
-  BASE_URL: "https://serverest.dev"
-
 stages:
   - test
 
