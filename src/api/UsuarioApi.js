@@ -1,13 +1,20 @@
-// src/api/UsuarioApi.js
 export class UsuarioApi {
-  constructor(request) {
-    this.request = request;
-    this.endpoint = '/usuarios';
-  }
+    constructor(request) {
+        this.request = request;
+    }
 
-  async criarUsuario(payload) {
-    return this.request.post(this.endpoint, {
-      data: payload,
-    });
-  }
+    async criarUsuario(payload) {
+        // Passando a rota '/usuarios' diretamente, igual fizemos em produtos e carrinhos
+        return await this.request.post('/usuarios', {
+            data: payload,
+        });
+    }
+
+    async buscarUsuarioPorId(id) {
+        return await this.request.get(`/usuarios/${id}`);
+    }
+
+    async deletarUsuario(id) {
+        return await this.request.delete(`/usuarios/${id}`);
+    }
 }
