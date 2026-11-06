@@ -3,17 +3,8 @@ import { defineConfig } from '@playwright/test';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Carrega o arquivo .env a partir da raiz do projeto
+// Carrega o arquivo .env a partir da raiz do projeto para execuções locais
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-
-// Trava de segurança: impede o teste de rodar sem apontar para um ambiente explícito
-if (!process.env.BASE_URL) {
-  throw new Error(
-    '❌ ERRO CRÍTICO DE CONFIGURAÇÃO:\n' +
-    'A variável BASE_URL não foi definida.\n' +
-    'Crie um arquivo .env na raiz com BASE_URL=https://serverest.dev ou injete-a via GitLab CI Variables.'
-  );
-}
 
 export default defineConfig({
   testDir: './tests',
@@ -33,15 +24,13 @@ export default defineConfig({
   ],
 
   use: {
-    // Lê estritamente a variável de ambiente sem expor nenhuma URL fixa
-    baseURL: process.env.BASE_URL,
+    // Definimos um valor padrão diretamente para garantir que a esteira o tenha, 
+    // enquanto o ambiente local pode continuar a usar a variável do .env, caso exista.
+    baseURL: process.env.BASE_URL || 'https://serverest.dev',
 
     extraHTTPHeaders: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      ...(process.env.API_TOKEN && {
-        Authorization: `Bearer ${process.env.API_TOKEN}`,
-      }),
     },
     trace: 'retain-on-failure',
   },
