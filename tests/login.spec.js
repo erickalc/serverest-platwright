@@ -17,6 +17,7 @@ test.describe('Testes da Funcionalidade Login', () => {
   });
 
   test('Deve realizar login com sucesso', async () => {
+
     const response = await loginApi.realizarLogin(
       usuarioMassa.email, 
       usuarioMassa.password
