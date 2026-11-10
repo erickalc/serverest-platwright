@@ -1,46 +1,38 @@
-import { test, expect, request as playwrightRequest } from '@playwright/test';
-
+// tests/produtos.spec.js
+import { test, expect } from '@playwright/test';
 import { ProdutoApi } from '../src/api/ProdutoApi.js';
 import { ProdutoFactory } from '../src/factories/ProdutoFactory.js';
-import { UsuarioApi } from '../src/api/UsuarioApi.js'; 
-import { LoginApi } from '../src/api/LoginApi.js';     
-import { UsuarioFactory } from '../src/factories/UsuarioFactory.js'; 
+import { UsuarioApi } from '../src/api/UsuarioApi.js';
+import { LoginApi } from '../src/api/LoginApi.js';
+import { UsuarioFactory } from '../src/factories/UsuarioFactory.js';
 
 test.describe('Testes de API - Produtos', () => {
-    let apiContext;
     let produtoApi;
     let tokenAdmin;
 
-    test.beforeAll(async () => {
-        // Agora injetamos o BASE_URL explicitamente no contexto manual
-        apiContext = await playwrightRequest.newContext({
-            baseURL: process.env.BASE_URL
-        });
-        
-        produtoApi = new ProdutoApi(apiContext);
-        const usuarioApi = new UsuarioApi(apiContext);
-        const loginApi = new LoginApi(apiContext);
-        
-        const usuarioAdmin = UsuarioFactory.gerarUsuarioValido(); 
-        usuarioAdmin.administrador = 'true'; 
-        
+    test.beforeAll(async ({ request }) => {
+        const usuarioApi = new UsuarioApi(request);
+        const loginApi = new LoginApi(request);
+
+        const usuarioAdmin = UsuarioFactory.gerarUsuarioValido('true');
+
         const responseCriacao = await usuarioApi.criarUsuario(usuarioAdmin);
         expect(responseCriacao.status(), 'Falha ao criar usuário admin no setup').toBe(201);
-        
+
         const responseLogin = await loginApi.realizarLogin(
             usuarioAdmin.email,
             usuarioAdmin.password
         );
         expect(responseLogin.status(), 'Falha ao fazer login no setup').toBe(200);
-        
+
         const bodyLogin = await responseLogin.json();
         tokenAdmin = bodyLogin.authorization;
-        
+
         expect(tokenAdmin, 'Token não foi gerado').toBeDefined();
     });
 
-    test.afterAll(async () => {
-        await apiContext.dispose();
+    test.beforeEach(async ({ request }) => {
+        produtoApi = new ProdutoApi(request);
     });
 
     test('Deve listar produtos com sucesso', async () => {
@@ -50,7 +42,7 @@ test.describe('Testes de API - Produtos', () => {
 
     test('Deve criar um produto com sucesso', async () => {
         const bodyProduto = ProdutoFactory.gerarProdutoValido();
-        
+
         const response = await produtoApi.criarProduto(bodyProduto, tokenAdmin);
         const responseBody = await response.json();
 

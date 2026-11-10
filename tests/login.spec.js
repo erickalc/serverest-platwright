@@ -9,25 +9,25 @@ test.describe('Testes da Funcionalidade Login', () => {
     let usuarioApi;
     let usuarioMassa;
 
-    // Usando a fixture { request }, o baseURL é herdado automaticamente das configurações
     test.beforeEach(async ({ request }) => {
         loginApi = new LoginApi(request);
         usuarioApi = new UsuarioApi(request);
 
         usuarioMassa = UsuarioFactory.gerarUsuarioValido('true');
-        await usuarioApi.criarUsuario(usuarioMassa);
+        const responseSetup = await usuarioApi.criarUsuario(usuarioMassa);
+        expect(responseSetup.status()).toBe(201);
     });
 
     test('Deve realizar login com sucesso', async () => {
         const response = await loginApi.realizarLogin(
-            usuarioMassa.email, 
+            usuarioMassa.email,
             usuarioMassa.password
         );
         const body = await response.json();
 
         expect(response.status()).toBe(200);
         expect(body.message).toBe('Login realizado com sucesso');
-        
+
         expect(body).toHaveProperty('authorization');
         expect(typeof body.authorization).toBe('string');
         expect(body.authorization.startsWith('Bearer ')).toBeTruthy();

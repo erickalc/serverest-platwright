@@ -1,10 +1,13 @@
+// src/api/ProdutoApi.js
 export class ProdutoApi {
     constructor(request) {
         this.request = request;
     }
 
-    async listarProdutos() {
-        return await this.request.get('/produtos');
+    async listarProdutos(params = {}) {
+        return await this.request.get('/produtos', {
+            params: params
+        });
     }
 
     async buscarProdutoPorId(id) {
@@ -13,6 +16,15 @@ export class ProdutoApi {
 
     async criarProduto(body, token) {
         return await this.request.post('/produtos', {
+            data: body,
+            headers: {
+                Authorization: token
+            }
+        });
+    }
+
+    async editarProduto(id, body, token) {
+        return await this.request.put(`/produtos/${id}`, {
             data: body,
             headers: {
                 Authorization: token

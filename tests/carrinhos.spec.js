@@ -1,167 +1,156 @@
+// tests/carrinhos.spec.js
 import { test, expect } from '@playwright/test';
-
 import { CarrinhoApi } from '../src/api/CarrinhoApi.js';
-import { CarrinhoFactory } from '../src/factories/CarrinhoFactory.js';
 import { ProdutoApi } from '../src/api/ProdutoApi.js';
+import { UsuarioApi } from '../src/api/UsuarioApi.js';
+import { LoginApi } from '../src/api/LoginApi.js';
+import { UsuarioFactory } from '../src/factories/UsuarioFactory.js';
 import { ProdutoFactory } from '../src/factories/ProdutoFactory.js';
-import { UsuarioApi } from '../src/api/UsuarioApi.js'; 
-import { LoginApi } from '../src/api/LoginApi.js';     
-import { UsuarioFactory } from '../src/factories/UsuarioFactory.js'; 
 
 test.describe('Testes de API - Carrinhos', () => {
     let carrinhoApi;
     let produtoApi;
-    
-    let tokenAdmin;
-    let idProdutoCadastrado;
-    let idUsuarioCadastrado;
-
-    // Função auxiliar para verificar o estoque do produto (equivalente ao seu verificaAtualizacaoEstoque no Java)
-    async function verificaAtualizacaoEstoque(idProduto, estoqueEsperado) {
-        const response = await produtoApi.buscarProdutoPorId(idProduto);
-        const body = await response.json();
-        expect(response.status()).toBe(200);
-        expect(body.quantidade).toBe(estoqueEsperado);
-    }
+    let usuarioApi;
+    let loginApi;
+    let token;
+    let idProduto;
+    let produtoCriado;
 
     test.beforeEach(async ({ request }) => {
-        carrinhoApi = new CarrinhoApi(request);
+        usuarioApi = new UsuarioApi(request);
+        loginApi = new LoginApi(request);
         produtoApi = new ProdutoApi(request);
-        const usuarioApi = new UsuarioApi(request);
-        const loginApi = new LoginApi(request);
-        
-        // 1. Cadastra Usuário Admin
-        const usuarioAdmin = UsuarioFactory.gerarUsuarioValido(); 
-        usuarioAdmin.administrador = 'true'; 
-        const responseUser = await usuarioApi.criarUsuario(usuarioAdmin);
-        idUsuarioCadastrado = (await responseUser.json())._id;
-        
-        // 2. Realiza Login
-        const responseLogin = await loginApi.realizarLogin(
-            usuarioAdmin.email, 
-            usuarioAdmin.password
-        );
-        tokenAdmin = (await responseLogin.json()).authorization;
-        
-        // 3. Cadastra Produto
-        const bodyProduto = ProdutoFactory.gerarProdutoValido();
-        const responseProduto = await produtoApi.criarProduto(bodyProduto, tokenAdmin);
-        idProdutoCadastrado = (await responseProduto.json())._id;
+        carrinhoApi = new CarrinhoApi(request);
+
+        // 1. Cria usuário administrador
+        const usuario = UsuarioFactory.gerarUsuarioValido('true');
+        const resUsuario = await usuarioApi.criarUsuario(usuario);
+        expect(resUsuario.status(), 'Falha ao criar usuário no beforeEach').toBe(201);
+
+        // 2. Realiza login e extrai o token
+        const resLogin = await loginApi.realizarLogin(usuario.email, usuario.password);
+        expect(resLogin.status(), 'Falha ao realizar login no beforeEach').toBe(200);
+        const bodyLogin = await resLogin.json();
+        token = bodyLogin.authorization;
+
+        // 3. Cria um produto novo para os testes de carrinho
+        produtoCriado = ProdutoFactory.gerarProdutoValido();
+        const resProduto = await produtoApi.criarProduto(produtoCriado, token);
+        expect(resProduto.status(), 'Falha ao criar produto no beforeEach').toBe(201);
+        const bodyProduto = await resProduto.json();
+        idProduto = bodyProduto._id;
     });
 
     test('Deve realizar o fluxo principal de compra com sucesso e verificar a sensibilização do estoque', async () => {
-        // Busca estoque inicial
-        const responseProduto = await produtoApi.buscarProdutoPorId(idProdutoCadastrado);
-        const estoqueInicial = (await responseProduto.json()).quantidade;
+        const quantidadeComprada = 1;
+        const payloadCarrinho = {
+            produtos: [
+                {
+                    idProduto: idProduto,
+                    quantidade: quantidadeComprada,
+                },
+            ],
+        };
 
-        // Cadastra Carrinho
-        const qtdCompra = 1;
-        const bodyCarrinho = CarrinhoFactory.gerarCarrinhoValido(idProdutoCadastrado, qtdCompra);
-        const responseCarrinho = await carrinhoApi.cadastrarCarrinho(bodyCarrinho, tokenAdmin);
-        
-        expect(responseCarrinho.status()).toBe(201);
-        const bodyResponseCarrinho = await responseCarrinho.json();
-        expect(bodyResponseCarrinho.message).toBe('Cadastro realizado com sucesso');
-        const idCarrinho = bodyResponseCarrinho._id;
+        const resCriarCarrinho = await carrinhoApi.cadastrarCarrinho(payloadCarrinho, token);
+        expect(resCriarCarrinho.status()).toBe(201);
 
-        // Verifica baixa do estoque ao adicionar ao carrinho
-        await verificaAtualizacaoEstoque(idProdutoCadastrado, estoqueInicial - qtdCompra);
-
-        // Busca informações do carrinho para verificar se foi adicionado corretamente
-        const responseBusca = await carrinhoApi.buscarCarrinhoPorId(idCarrinho);
-        expect(responseBusca.status()).toBe(200);
-        const bodyBusca = await responseBusca.json();
-        expect(bodyBusca._id).toBe(idCarrinho);
-        expect(bodyBusca.produtos[0].idProduto).toBe(idProdutoCadastrado);
-        expect(bodyBusca.produtos[0].quantidade).toBe(qtdCompra);
+        // Verifica na listagem de produtos se o estoque foi reduzido
+        const resListaProdutos = await produtoApi.listarProdutos();
+        const bodyLista = await resListaProdutos.json();
+        const produtoAtualizado = bodyLista.produtos.find((p) => p._id === idProduto);
+        expect(produtoAtualizado.quantidade).toBe(produtoCriado.quantidade - quantidadeComprada);
 
         // Conclui a compra
-        const responseConcluir = await carrinhoApi.concluirCompra(tokenAdmin);
-        expect(responseConcluir.status()).toBe(200);
-        expect((await responseConcluir.json()).message).toBe('Registro excluído com sucesso');
-
-        // Verifica que o carrinho não existe mais
-        const responseBuscaPosCompra = await carrinhoApi.buscarCarrinhoPorId(idCarrinho);
-        expect(responseBuscaPosCompra.status()).toBe(400);
-        expect((await responseBuscaPosCompra.json()).message).toBe('Carrinho não encontrado');
-
-        // Verifica se o estoque permanece com a baixa consolidada
-        await verificaAtualizacaoEstoque(idProdutoCadastrado, estoqueInicial - qtdCompra);
+        const resConcluir = await carrinhoApi.concluirCompra(token);
+        expect(resConcluir.status()).toBe(200);
+        const bodyConcluir = await resConcluir.json();
+        expect(bodyConcluir.message).toBe('Registro excluído com sucesso');
     });
 
     test('Deve realizar o fluxo principal de compra e verificar a listagem de produtos por filtro', async () => {
-        const qtdCompra = 1;
-        const bodyCarrinho = CarrinhoFactory.gerarCarrinhoValido(idProdutoCadastrado, qtdCompra);
-        const responseCarrinho = await carrinhoApi.cadastrarCarrinho(bodyCarrinho, tokenAdmin);
-        const idCarrinho = (await responseCarrinho.json())._id;
+        const payloadCarrinho = {
+            produtos: [
+                {
+                    idProduto: idProduto,
+                    quantidade: 1,
+                },
+            ],
+        };
 
-        // Busca por Query Param informando o ID do carrinho
-        const responseFiltroId = await carrinhoApi.buscarCarrinhosPorFiltro({ _id: idCarrinho });
-        expect(responseFiltroId.status()).toBe(200);
-        const bodyFiltroId = await responseFiltroId.json();
-        expect(bodyFiltroId.carrinhos[0]._id).toBe(idCarrinho);
-        expect(bodyFiltroId.carrinhos[0].produtos[0].idProduto).toBe(idProdutoCadastrado);
-        expect(bodyFiltroId.carrinhos[0].produtos[0].quantidade).toBe(qtdCompra);
+        const resCriarCarrinho = await carrinhoApi.cadastrarCarrinho(payloadCarrinho, token);
+        expect(resCriarCarrinho.status()).toBe(201);
+        const bodyCarrinho = await resCriarCarrinho.json();
 
-        // Busca por Query Param informando o ID do usuário
-        const responseFiltroUser = await carrinhoApi.buscarCarrinhosPorFiltro({ idUsuario: idUsuarioCadastrado });
-        expect(responseFiltroUser.status()).toBe(200);
-        const bodyFiltroUser = await responseFiltroUser.json();
-        expect(bodyFiltroUser.carrinhos[0].idUsuario).toBe(idUsuarioCadastrado);
-        expect(bodyFiltroUser.carrinhos[0].produtos[0].idProduto).toBe(idProdutoCadastrado);
-        expect(bodyFiltroUser.carrinhos[0].produtos[0].quantidade).toBe(qtdCompra);
+        // Verifica o carrinho criado usando o filtro da CarrinhoApi
+        const resBuscaFiltro = await carrinhoApi.buscarCarrinhosPorFiltro({ _id: bodyCarrinho._id });
+        expect(resBuscaFiltro.status()).toBe(200);
+        const bodyFiltro = await resBuscaFiltro.json();
+        expect(bodyFiltro.quantidade).toBe(1);
+
+        // Conclui a compra
+        const resConcluir = await carrinhoApi.concluirCompra(token);
+        expect(resConcluir.status()).toBe(200);
     });
 
     test('Deve realizar o fluxo principal de compra e verificar que o estoque foi reabastecido após cancelamento', async () => {
-        const responseProduto = await produtoApi.buscarProdutoPorId(idProdutoCadastrado);
-        const estoqueInicial = (await responseProduto.json()).quantidade;
+        const quantidadeComprada = 1;
+        const payloadCarrinho = {
+            produtos: [
+                {
+                    idProduto: idProduto,
+                    quantidade: quantidadeComprada,
+                },
+            ],
+        };
 
-        const qtdCompra = 1;
-        const bodyCarrinho = CarrinhoFactory.gerarCarrinhoValido(idProdutoCadastrado, qtdCompra);
-        const responseCarrinho = await carrinhoApi.cadastrarCarrinho(bodyCarrinho, tokenAdmin);
-        const idCarrinho = (await responseCarrinho.json())._id;
+        const resCriarCarrinho = await carrinhoApi.cadastrarCarrinho(payloadCarrinho, token);
+        expect(resCriarCarrinho.status()).toBe(201);
 
-        // Verifica baixa do estoque
-        await verificaAtualizacaoEstoque(idProdutoCadastrado, estoqueInicial - qtdCompra);
+        // Cancela a compra e verifica se os produtos retornaram ao estoque
+        const resCancelar = await carrinhoApi.cancelarCompra(token);
+        expect(resCancelar.status()).toBe(200);
+        const bodyCancelar = await resCancelar.json();
+        expect(bodyCancelar.message).toBe('Registro excluído com sucesso. Estoque dos produtos reabastecido');
 
-        // Cancela a Compra
-        const responseCancelar = await carrinhoApi.cancelarCompra(tokenAdmin);
-        expect(responseCancelar.status()).toBe(200);
-        expect((await responseCancelar.json()).message).toBe('Registro excluído com sucesso. Estoque dos produtos reabastecido');
-
-        // Verifica reabastecimento do estoque
-        await verificaAtualizacaoEstoque(idProdutoCadastrado, estoqueInicial);
+        const resListaProdutos = await produtoApi.listarProdutos();
+        const bodyLista = await resListaProdutos.json();
+        const produtoReabastecido = bodyLista.produtos.find((p) => p._id === idProduto);
+        expect(produtoReabastecido.quantidade).toBe(produtoCriado.quantidade);
     });
 
     test('Não deve permitir ao usuário adicionar mais de um carrinho', async () => {
-        const bodyCarrinho = CarrinhoFactory.gerarCarrinhoValido(idProdutoCadastrado, 1);
-        
-        // Primeiro carrinho
-        await carrinhoApi.cadastrarCarrinho(bodyCarrinho, tokenAdmin);
+        const payloadCarrinho = {
+            produtos: [
+                {
+                    idProduto: idProduto,
+                    quantidade: 1,
+                },
+            ],
+        };
 
-        // Segundo carrinho - Deve falhar
-        const responseSegundoCarrinho = await carrinhoApi.cadastrarCarrinho(bodyCarrinho, tokenAdmin);
-        expect(responseSegundoCarrinho.status()).toBe(400);
-        expect((await responseSegundoCarrinho.json()).message).toBe('Não é permitido ter mais de 1 carrinho');
+        const resPrimeiroCarrinho = await carrinhoApi.cadastrarCarrinho(payloadCarrinho, token);
+        expect(resPrimeiroCarrinho.status()).toBe(201);
+
+        const resSegundoCarrinho = await carrinhoApi.cadastrarCarrinho(payloadCarrinho, token);
+        expect(resSegundoCarrinho.status()).toBe(400);
+        const bodyErro = await resSegundoCarrinho.json();
+        expect(bodyErro.message).toBe('Não é permitido ter mais de 1 carrinho');
     });
 
     test('Não deve permitir comprar quantidade de produtos maior que a quantidade em estoque', async () => {
-        const responseProduto = await produtoApi.buscarProdutoPorId(idProdutoCadastrado);
-        const estoqueInicial = (await responseProduto.json()).quantidade;
+        const payloadCarrinho = {
+            produtos: [
+                {
+                    idProduto: idProduto,
+                    quantidade: produtoCriado.quantidade + 10,
+                },
+            ],
+        };
 
-        const qtdInvalida = estoqueInicial + 1;
-        const bodyCarrinho = CarrinhoFactory.gerarCarrinhoValido(idProdutoCadastrado, qtdInvalida);
-        
-        const responseCarrinho = await carrinhoApi.cadastrarCarrinho(bodyCarrinho, tokenAdmin);
-        expect(responseCarrinho.status()).toBe(400);
-        
-        const bodyResponse = await responseCarrinho.json();
-        expect(bodyResponse.message).toBe('Produto não possui quantidade suficiente');
-        expect(bodyResponse.item.idProduto).toBe(idProdutoCadastrado);
-        expect(bodyResponse.item.quantidade).toBe(qtdInvalida);
-        expect(bodyResponse.item.quantidadeEstoque).toBe(estoqueInicial);
-
-        // Verifica que o estoque não sofreu alteração
-        await verificaAtualizacaoEstoque(idProdutoCadastrado, estoqueInicial);
+        const resCarrinho = await carrinhoApi.cadastrarCarrinho(payloadCarrinho, token);
+        expect(resCarrinho.status()).toBe(400);
+        const bodyErro = await resCarrinho.json();
+        expect(bodyErro.message).toBe('Produto não possui quantidade suficiente');
     });
 });

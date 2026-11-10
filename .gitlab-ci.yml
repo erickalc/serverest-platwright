@@ -1,6 +1,5 @@
 image: mcr.microsoft.com/playwright:v1.64.1-jammy
 
-# Força a injeção da variável no ambiente da pipeline
 variables:
   BASE_URL: "https://serverest.dev"
 
@@ -10,13 +9,13 @@ stages:
 testes_api:
   stage: test
   script:
-    - npm ci 
-    - npx playwright test 
+    - npm ci
+    - npx playwright test
+  after_script:
     - npx allure generate allure-results -o allure-report --clean
   artifacts:
     when: always
     paths:
-      - playwright-report/
       - test-results/
       - allure-results/
       - allure-report/
